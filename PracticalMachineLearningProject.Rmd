@@ -9,4 +9,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This is the project submission for the Practical Machine Learning class.
+## Data Description
+
+## Data Preprocessing
+
+## Data Modeling
+
+## Results and Discussion
+
+## Conclusion

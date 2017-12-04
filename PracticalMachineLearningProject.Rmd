@@ -7,13 +7,42 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(knitr)
+library(plyr)
+library(caret)
+library(scales)
+
 ```
 
 ## Data Description
 
+``` {r dd01, echo=F, message=F, warning=F}
+
+train.raw <- read.csv("data/pml-training.csv")
+test.raw <- read.csv("data/pml-testing.csv")
+
+train.class.count <- count(train.raw, var="classe")
+train.class.count$percent <- percent(train.class.count$freq / sum(train.class.count$freq)) 
+
+```
+
+The objective of this report is to describe a predictive model used in identify the way people exercise. The data used in developing the model was collected from personal devices such as Jawbone up, Nike Fuelband, and Fitbit. This data set contains `r ncol(test.raw)` variables used in the modeling process. The training data set contains `r format(nrow(train.raw), big.mark=",")` observations and the test has `r nrow(test.raw)`. The following characteristics are derived from the training data set:
+
+- the distribution of exercise types is the following:
+`r kable(train.class.count, caption="Class Distribution", format.args=list(big.mark=","), col.names=c("Class", "Number", "Percentage"))`
+- some of the following variables have a large amount of missing values (%%%) such as xyz.
+
+
+
 ## Data Preprocessing
 
 ## Data Modeling
+
+``` {r dm01, echo=F, message=F, warning=F}
+
+
+```
 
 ## Results and Discussion
 

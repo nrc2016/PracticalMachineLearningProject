@@ -125,11 +125,36 @@ $(document).ready(function () {
 
 <div id="data-description" class="section level2">
 <h2>Data Description</h2>
-<p>The objective of this report is to describe a predictive model used in identify the way people exercise. The data used in developing the model was collected from personal devices such as Jawbone up, Nike Fuelband, and Fitbit. This data set contains 160 variables used in the modeling process. The training data set contains 19,622 observations and the test has 20. The following characteristics are derived from the training data set:</p>
-<ul>
-<li>comment on the different types of data</li>
-<li>the distribution of exercise types is seen below. They are close to evenly distributed with the majority in class Exercise A and minority to class Exercise D.</li>
-</ul>
+<p>The objective of this report is to describe a predictive model used in identify the way people exercise. The data used in developing the model was collected from personal devices such as Jawbone up, Nike Fuelband, and Fitbit. This data set contains 160 variables used in the modeling process. The training data set contains 19,622 observations and the test has 20. The following characteristics were observed from the training data set:</p>
+<ol style="list-style-type: decimal">
+<li>The following table shows the different data types found in the training data set.</li>
+</ol>
+<table>
+<caption>Data Types</caption>
+<thead>
+<tr class="header">
+<th align="left">Data Type</th>
+<th align="right">Frequency</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">factor</td>
+<td align="right">37</td>
+</tr>
+<tr class="even">
+<td align="left">integer</td>
+<td align="right">35</td>
+</tr>
+<tr class="odd">
+<td align="left">numeric</td>
+<td align="right">88</td>
+</tr>
+</tbody>
+</table>
+<ol start="2" style="list-style-type: decimal">
+<li>The distribution of exercise types is seen below. They are close to evenly distributed with the majority in class Exercise A and minority to class Exercise D.</li>
+</ol>
 <table>
 <caption>Class Distribution</caption>
 <thead>
@@ -167,32 +192,192 @@ $(document).ready(function () {
 </tr>
 </tbody>
 </table>
-<ul>
-<li>some of the following variables have a large amount of missing values (98%) such as max_roll_belt, max_picth_belt, min_roll_belt, and min_pitch_belt. The rows with incomplete data have the same variables missing for each.</li>
-<li>comment on the variance for some of the variables</li>
-<li>comment on the distribution of classes for discrete variables.</li>
-</ul>
+<ol start="3" style="list-style-type: decimal">
+<li>Some of the following variables have a large amount of missing values (98%) such as kurtosis_roll_belt, kurtosis_picth_belt, kurtosis_yaw_belt, and skewness_roll_belt. The rows with incomplete data have the same variables missing for each.</li>
+<li>Some of the following variables (e.g. kurtosis_roll_belt, kurtosis_picth_belt, kurtosis_yaw_belt, and skewness_roll_belt) have values with empty/no values or “#DIV/0!” message. These values make up large amount of the data in these variables. There are some numeric values in each, but there is no consistency when this numeric data is present. These variables were assigned as a factor variable, but were numeric.</li>
+<li>Since x increases as the number of rows increases and classe is grouped by exercise type, it is an index related to the data set and thus is correlated to the class variable, “classe”.</li>
+<li>cvtd_timestamp, raw_timestamp_part1, and raw_timestamp_part_2 are related to data and time information about the row.</li>
+<li>Name of the user is recorded in the data set and the number of users are 6.</li>
+<li>The “new_window” variable is correltated to the variables with missing values.</li>
+</ol>
 </div>
 <div id="data-preprocessing" class="section level2">
 <h2>Data Preprocessing</h2>
+<p>The following preprocessing steps were performed:</p>
+<ol style="list-style-type: decimal">
+<li>The empty string values in the variables were replaced with NA’s to address 4 from above.</li>
+<li>The “DIV/0!” values in the variables were replaced with NA’s to address 4 from above.</li>
+</ol>
 <div id="filtering" class="section level3">
 <h3>Filtering</h3>
+<p>The following feature filtering was performed:</p>
+<ol style="list-style-type: decimal">
+<li>The columns with missing data values were removed and the columns affected are found in points 3 and 4 above.</li>
+<li>The “X” variable was removed because it was used as an index as described in 5.</li>
+<li>The time and date information was removed as per 6 above.</li>
+<li>The name of the user was removed as per 7.</li>
+<li>The variables related to window data was removed.</li>
+</ol>
+<p>Once the feature filtering is completed the training set has the following characteristics:</p>
+<ol style="list-style-type: decimal">
+<li>The number of columns is reduced from 160 to 53.</li>
+<li>The number of rows remains the same at 19,622.</li>
+<li>The number of values with missing data is 0.</li>
+</ol>
+<p><strong>Result: Feature filtering was performed on original data set to remove extraneous variables and variables, such as “X”, that may bias the prediction.</strong></p>
 </div>
 <div id="transformation" class="section level3">
 <h3>Transformation</h3>
-</div>
-<div id="combination" class="section level3">
-<h3>Combination</h3>
+<p>Principal Component Analysis (PCA) can be used to reduce the number of variables in a data set without any loss in chracteristics of the data, such as variance. This technique can be used to identify a transformation of data set variables that represents an amount of variance exhibited in the data set. The result of this transformation may identify combinations of variables that explain a majority of the data set’s variance.</p>
+<p><strong>Result: An additional data set constructed of PCA variables that were exhibited more than 1% of overall variance.</strong></p>
 </div>
 </div>
 <div id="data-modeling" class="section level2">
 <h2>Data Modeling</h2>
+<p>10-fold cross validation will be used on the traning data sets to evaluate the effectiveness in predicting the class variable, “classe”. In cross validation, the data set is separated into N partitions or in this case 10. Ten iterations are performed to ensure that each observation to be used once in testing. For each iteration, nine partitions are used in constructing a model with the one left out partition used as testing data. The resulting predictions are evaluted against the actual class values and generalized metrics are calculated to estimate the global metrics such as accuracy and recall.</p>
+<p>The following models were used in 10-fold cross validation for each data set:</p>
+<ol style="list-style-type: decimal">
+<li>Random Forest Decision Tree</li>
+<li>Weka Decision Tree (J48)</li>
+<li>Rpart</li>
+</ol>
+<p><strong>NOTE:</strong> Random number generator seed reset to constant for reproducibility.</p>
+<p><strong>Result: Two different data sets and three machine learning algorithms were used to evaluate model performance for six different predictive modeling approaches.</strong></p>
 </div>
 <div id="results-and-discussion" class="section level2">
 <h2>Results and Discussion</h2>
+<p>The table below outlines the performance metrics achieved by the different modelling approaches using 10-fold cross validation. Since the testing data are withheld from the model training in cross validation, the metrics derived are considered to be out of sample errors. While not exactly error, accuracy and recall represent the percentage of correctly classified observations and the error can be computed by subtracting it from 100%.</p>
+<p>The J48 Decision Tree and RandomForest algorithms performed better than the RPart algorithm. With the J48 and Random Forest algorithms, the Raw Filtered data set performed better than the one created from the Principal Component Analysis transform. From the experimentation, the J48 algorithm and the raw filtered data set achieved the best results and will be used to generate the model used in predicting unknown classes in the testing data set.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Algorithm</th>
+<th align="left">Data Set</th>
+<th align="left">Accuracy</th>
+<th align="left">Recall A</th>
+<th align="left">Recall B</th>
+<th align="left">Recall C</th>
+<th align="left">Recall D</th>
+<th align="left">Recall E</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">J48 Decision Tree</td>
+<td align="left">Raw Filtered</td>
+<td align="left">99.8%</td>
+<td align="left">100.0%</td>
+<td align="left">99.8%</td>
+<td align="left">99.7%</td>
+<td align="left">99.6%</td>
+<td align="left">99.9%</td>
+</tr>
+<tr class="even">
+<td align="left">Random Forest</td>
+<td align="left">Raw Filtered</td>
+<td align="left">99.5%</td>
+<td align="left">99.8%</td>
+<td align="left">99.5%</td>
+<td align="left">98.6%</td>
+<td align="left">99.7%</td>
+<td align="left">99.9%</td>
+</tr>
+<tr class="odd">
+<td align="left">J48 Decision Tree</td>
+<td align="left">PCA Transform</td>
+<td align="left">91.8%</td>
+<td align="left">96.3%</td>
+<td align="left">89.7%</td>
+<td align="left">90.6%</td>
+<td align="left">91.4%</td>
+<td align="left">88.4%</td>
+</tr>
+<tr class="even">
+<td align="left">Random Forest</td>
+<td align="left">PCA Transform</td>
+<td align="left">75.3%</td>
+<td align="left">81.8%</td>
+<td align="left">73.3%</td>
+<td align="left">71.8%</td>
+<td align="left">70.3%</td>
+<td align="left">74.9%</td>
+</tr>
+<tr class="odd">
+<td align="left">Rpart Tree</td>
+<td align="left">Raw Filtered</td>
+<td align="left">50.4%</td>
+<td align="left">90.9%</td>
+<td align="left">33.9%</td>
+<td align="left">47.6%</td>
+<td align="left">8.6%</td>
+<td align="left">45.2%</td>
+</tr>
+<tr class="even">
+<td align="left">Rpart Tree</td>
+<td align="left">PCA Transform</td>
+<td align="left">34.3%</td>
+<td align="left">54.0%</td>
+<td align="left">13.2%</td>
+<td align="left">51.9%</td>
+<td align="left">0.0%</td>
+<td align="left">39.8%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result: J48 Decision Tree and the original filtered data yielded the best accuracy.</strong></p>
+</div>
+<div id="unknown-test-samples" class="section level2">
+<h2>Unknown Test Samples</h2>
+<p>The model built for the testing data set will use the entire data set for training instead of a partitioned data set as in the cross validation. The original filtered data set will be used with the J48 Decision Tree algorithm which produced the best results in the cross validation evaluation. The model generated will be used to predict the “classe” variable in the test data set. The test data set had a new variable, “problem_id”, that was filtered out in preprocessing the data.</p>
+<p>After the predictions for the “classe” variable were generated, the following distribution of the “classe” were observed. This test distribution of “classe” was compared to the original training set distribution. The results show a difference in all the distributions and this may mean that the test data set may not represent the same class distribution in the training data. This may be an area of concern if the test set has the same distribution as the training data set.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">Classe Value</th>
+<th align="left">Train Set</th>
+<th align="left">Test Set</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">A</td>
+<td align="left">28.4%</td>
+<td align="left">40%</td>
+</tr>
+<tr class="even">
+<td align="left">B</td>
+<td align="left">19.4%</td>
+<td align="left">35%</td>
+</tr>
+<tr class="odd">
+<td align="left">C</td>
+<td align="left">17.4%</td>
+<td align="left">5%</td>
+</tr>
+<tr class="even">
+<td align="left">D</td>
+<td align="left">16.4%</td>
+<td align="left">5%</td>
+</tr>
+<tr class="odd">
+<td align="left">E</td>
+<td align="left">18.4%</td>
+<td align="left">15%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result: J48 Decision Tree algorithm and filtered original data was used to predict “classe” variable for the test data set.</strong></p>
 </div>
 <div id="conclusion" class="section level2">
 <h2>Conclusion</h2>
+<p>The following results were achieved:</p>
+<ol style="list-style-type: decimal">
+<li>Feature filtering was performed on original data set to remove extraneous variables.</li>
+<li>PCA was performed to generate an additional data set.</li>
+<li>Six machine learning modeling approaches were evaluated.</li>
+<li>Performance analysis showed that the J48 algorithm and the original filtered data performed best.</li>
+<li>The J48 Decision Tree and the filtered origianl data set was used to predict the unknown variable, “classe”, in the test data set.</li>
+</ol>
 </div>
 
 

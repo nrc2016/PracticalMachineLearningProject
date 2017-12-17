@@ -12,6 +12,69 @@ library(knitr)
 library(plyr)
 library(caret)
 library(scales)
+library(RWeka)
+library(scales)
+
+# extract model performance metrics for Random Forest
+extractMetricsRf <- function (rf) {
+  p = 0
+  r = array(dim=5)
+  
+  for(i in 1:5) {
+    p = p + rf$confusion[i,i]
+    r[i] = rf$confusion[i,i]/sum(rf$confusion[,i])
+  }
+  p = p/nrow(train.final)
+  
+  return(c(p, r))
+}
+
+# extract model performance metrics for J48
+extractMetricsJ48 <- function (j48) {
+  df <- data.frame(actual=train.final$classe,
+                   pred=j48$predictions)
+  
+  p = sum(df$actual==df$pred)/nrow(train.final)
+  r = array(dim=5)
+  
+  for(i in 1:5) {
+    df.2 <- df[df$actual==unique(df$actual)[i],]
+    r[i] = sum(df.2$actual==df.2$pred)/nrow(df.2)
+  }
+
+  return(c(p, r))
+}
+
+# extract model performance metrics for RPart
+extractMetricsRPart <- function (m) {
+  cm <- confusionMatrix(m, mode="prec_recall")[[1]]
+  p = 0
+  r = array(dim=5)
+  
+  for (i in 1:5) {
+    p = p + cm[i,i]
+    r[i] = cm[i,i]/sum(cm[,i])
+  }
+  
+  return(c(p/100, r))
+}
+
+# extract model performance metrics for models
+extractMetrics <- function (model) {
+  if(class(model$finalModel)[[1]]=="randomForest") {
+    return(extractMetricsRf(model$finalModel))
+  }
+  
+  if(class(model$finalModel)[[1]]=="J48") {
+    return(extractMetricsJ48(model$finalModel))
+  }
+  
+  if(class(model$finalModel)[[1]]=="rpart") {
+    return(extractMetricsRPart(model))
+  }
+  
+  return(c(Precision=-1, RecallA=-1, RecallB=-1, RecallC=-1, RecallD=-1, RecallE=-1))
+}
 
 ```
 
@@ -19,45 +82,272 @@ library(scales)
 
 ``` {r dd01, echo=F, message=F, warning=F}
 
+# read in data sets
 train.raw <- read.csv("data/pml-training.csv")
 test.raw <- read.csv("data/pml-testing.csv")
+
+# calculate counts for data types
+train.data.types <- data.frame (col=names(train.raw),
+                                 type=unlist(lapply(1:ncol(train.raw), FUN=function(x) class(train.raw[,x]))))
+train.data.types.count <- count(train.data.types, var="type")
 
 train.class.count <- count(train.raw, var="classe")
 train.class.count$percent <- percent(train.class.count$freq / sum(train.class.count$freq)) 
 
-train.na <- apply(train.raw, 2, FUN=function(x) which(is.na(x)))
+# replace values with just spaces and div/0 with NA
+train.raw.replaced = train.raw
+train.raw.replaced[train.raw.replaced == ""] = NA
+train.raw.replaced[train.raw.replaced == "#DIV/0!"] = NA
+
+# analysis on missing data
+train.na <- apply(train.raw.replaced, 2, FUN=function(x) which(is.na(x)))
 train.na.count <- lapply(train.na, FUN=function(x) length(x))
 train.na.cols <- train.raw[, which(train.na.count>0)]
 train.na.cols.na <- apply(train.na.cols, 1, FUN=function(x) which(is.na(x)))
 train.na.cols.na.count <- lapply(train.na.cols.na, FUN=function(x) length(x))
 
+train.remove.na <- train.raw.replaced[, which(train.na.count==0)]
+train.rna.types <- data.frame (col=names(train.remove.na),
+                                 type=unlist(lapply(1:ncol(train.remove.na), FUN=function(x) class(train.remove.na[,x]))))
+
+
+# analysis on empty data and div/0
+train.empty <- apply(train.raw, 2, FUN=function(x) which(x == ""))
+train.empty.count <- lapply(train.empty, FUN=function(x) length(x))
+train.empty.cols <- train.raw[, which(train.empty.count>0)]
+train.empty.cols.na <- apply(train.empty.cols, 1, FUN=function(x) which(is.na(x)))
+train.empty.cols.na.count <- lapply(train.empty.cols.na, FUN=function(x) length(x))
+
+train.div0 <- apply(train.raw, 2, FUN=function(x) which(x == "#DIV/0!"))
+train.div0.count <- lapply(train.div0, FUN=function(x) length(x))
+train.div0.cols <- train.raw[, which(train.div0.count>0)]
+train.div0.cols.na <- apply(train.div0.cols, 1, FUN=function(x) which(is.na(x)))
+train.div0.cols.na.count <- lapply(train.div0.cols.na, FUN=function(x) length(x))
+
+test.remove.na <- test.raw[, which(train.na.count==0)]
+
+
 ```
 
-The objective of this report is to describe a predictive model used in identify the way people exercise. The data used in developing the model was collected from personal devices such as Jawbone up, Nike Fuelband, and Fitbit. This data set contains `r ncol(test.raw)` variables used in the modeling process. The training data set contains `r format(nrow(train.raw), big.mark=",")` observations and the test has `r nrow(test.raw)`. The following characteristics are derived from the training data set:
+The objective of this report is to describe a predictive model used in identify the way people exercise. The data used in developing the model was collected from personal devices such as Jawbone up, Nike Fuelband, and Fitbit. This data set contains `r ncol(test.raw)` variables used in the modeling process. The training data set contains `r format(nrow(train.raw), big.mark=",")` observations and the test has `r nrow(test.raw)`. The following characteristics were observed from the training data set:
 
-- comment on the different types of data
-- the distribution of exercise types is seen below. They are close to evenly distributed with the majority in class Exercise `r train.class.count[train.class.count$freq == max(train.class.count$freq), "classe"]` and minority to class Exercise `r train.class.count[train.class.count$freq == min(train.class.count$freq), "classe"]`. 
-`r kable(train.class.count, caption="Class Distribution", format.args=list(big.mark=","), col.names=c("Class", "Number", "Percentage"))`
-- some of the following variables have a large amount of missing values (`r percent(round(unique(train.na.count[train.na.count>0])[[1]] / nrow(train.raw),2))`) such as `r paste(names(train.na.cols)[1:3],sep=",")`, and `r names(train.na.cols)[4]`. The rows with incomplete data have the same variables missing for each.
-- comment on the variance for some of the variables
-- comment on the distribution of classes for discrete variables.
+1) The following table shows the different data types found in the training data set.
 
+``` {r dd02, warning=F, echo=F, message=F, out.width="50%"}
+kable(train.data.types.count,
+      caption="Data Types", 
+      format.args=list(big.mark=","), 
+      col.names=c("Data Type", "Frequency"))
+```
+
+2) The distribution of exercise types is seen below. They are close to evenly distributed with the majority in class Exercise `r train.class.count[train.class.count$freq == max(train.class.count$freq), "classe"]` and minority to class Exercise `r train.class.count[train.class.count$freq == min(train.class.count$freq), "classe"]`. 
+
+``` {r dd03, warning=F, echo=F, message=F, out.width="50%"}
+kable(train.class.count,
+      caption="Class Distribution",
+      format.args=list(big.mark=","),
+      col.names=c("Class", "Number", "Percentage"))
+```
+
+3) Some of the following variables have a large amount of missing values (`r percent(round(unique(train.na.count[train.na.count>0])[[1]] / nrow(train.raw),2))`) such as `r paste(names(train.na.cols)[1:3], collapse=", ")`, and `r names(train.na.cols)[4]`. The rows with incomplete data have the same variables missing for each.
+4) Some of the following variables (e.g. `r paste(names(train.empty.cols)[1:3], collapse=", ")`, and  `r names(train.empty.cols)[4]`) have values with empty/no values or "#DIV/0!" message. These values make up large amount of the data in these variables. There are some numeric values in each, but there is no consistency when this numeric data is present. These variables were assigned as a factor variable, but were numeric.
+5) Since x increases as the number of rows increases and classe is grouped by exercise type, it is an index related to the data set and thus is correlated to the class variable, "classe".
+6) cvtd_timestamp, raw_timestamp_part1, and raw_timestamp_part_2 are related to data and time information about the row.
+7) Name of the user is recorded in the data set and the number of users are `r length(unique(train.raw$user_name))`.
+8) The "new_window" variable is correltated to the variables with missing values.
 
 ## Data Preprocessing
 
+The following preprocessing steps were performed:
+
+1) The empty string values in the variables were replaced with NA's to address 4 from above.
+2) The "DIV/0!" values in the variables were replaced with NA's to address 4 from above. 
+
 ### Filtering
 
-### Transformation
+```{r filtering, echo=FALSE, message=F, warning=F}
 
-### Combination
+# create training data set for modeling
+train.final <- train.remove.na[, -c(which(colnames(train.remove.na)=="X"),
+                                    which(colnames(train.remove.na)=="user_name"),
+                                    which(colnames(train.remove.na)=="raw_timestamp_part_1"),
+                                    which(colnames(train.remove.na)=="raw_timestamp_part_2"),
+                                    which(colnames(train.remove.na)=="cvtd_timestamp"),
+                                    which(colnames(train.remove.na)=="new_window"),
+                                    which(colnames(train.remove.na)=="num_window"))]
 
-## Data Modeling
-
-``` {r dm01, echo=F, message=F, warning=F}
-
+# create testing data set for testing
+test.final <- test.remove.na[, -c(which(colnames(test.remove.na)=="X"),
+                                    which(colnames(test.remove.na)=="user_name"),
+                                    which(colnames(test.remove.na)=="raw_timestamp_part_1"),
+                                    which(colnames(test.remove.na)=="raw_timestamp_part_2"),
+                                    which(colnames(test.remove.na)=="cvtd_timestamp"),
+                                    which(colnames(test.remove.na)=="new_window"),
+                                    which(colnames(test.remove.na)=="num_window"),
+                                  which(colnames(test.remove.na)=="problem_id"))]
 
 ```
 
+The following feature filtering was performed:
+
+1) The columns with missing data values were removed and the columns affected are found in points 3 and 4 above.
+2) The "X" variable was removed because it was used as an index as described in 5.
+3) The time and date information was removed as per 6 above.
+4) The name of the user was removed as per 7.
+5) The variables related to window data was removed.
+
+Once the feature filtering is completed the training set has the following characteristics:
+
+1) The number of columns is reduced from `r ncol(train.raw)` to `r ncol(train.final)`.
+2) The number of rows remains the same at `r format(nrow(train.raw), big.mark=",")`.
+3) The number of values with missing data is `r sum(is.na(train.final))`.
+
+**Result: Feature filtering was performed on original data set to remove extraneous variables and variables, such as "X", that may bias the prediction.**
+
+### Transformation
+
+``` {r t01, echo=F, message=F, warning=F}
+
+# create pca model for transformation
+pca.model <- prcomp(train.final[,-which(colnames(train.final)=="classe")])
+pca.data <- predict(pca.model, newdata=train.final[,-which(colnames(train.final)=="classe")])
+expl.var <- round(pca.model$sdev^2/sum(pca.model$sdev^2)*100)
+
+# create pca training data set
+train.pca <- data.frame(classe = train.final$classe,
+                      pca.data[, c(which(expl.var>10))])
+
+```
+
+Principal Component Analysis (PCA) can be used to reduce the number of variables in a data set without any loss in chracteristics of the data, such as variance. This technique can be used to identify a transformation of data set variables that represents an amount of variance exhibited in the data set. The result of this transformation may identify combinations of variables that explain a majority of the data set's variance.
+
+**Result: An additional data set constructed of PCA variables that were exhibited more than 1% of overall variance.**
+
+## Data Modeling
+
+``` {r dm01, echo=F, message=F, warning=F, cache=TRUE}
+
+# set training control to 10 fold cross validation
+cross.validation.control = trainControl(method="cv", number=10)
+
+# Random Forest and Filtered Original Data
+set.seed(2017)
+model1 <- train(classe~., data=train.final, method="rf", trControl=cross.validation.control)
+
+# Random Forest and PCA Data
+set.seed(2017)
+model1.pca <- train(classe~., data=train.pca, method="rf", trControl=cross.validation.control)
+
+# J48 and Filtered Original Data
+set.seed(2017)
+model2 <- train(classe~., data=train.final, method="J48", trControl=cross.validation.control)
+
+# J48 and PCA Data
+set.seed(2017)
+model2.pca <- train(classe~., data=train.pca, method="J48", trControl=cross.validation.control)
+
+# Rpart and Filtered Original Data
+set.seed(2017)
+model3 <- train(classe~., data=train.final, method="rpart", trControl=cross.validation.control)
+
+# RPart and PCA Data
+set.seed(2017)
+model3.pca <- train(classe~., data=train.pca, method="rpart", trControl=cross.validation.control)
+
+```
+
+10-fold cross validation will be used on the traning data sets to evaluate the effectiveness in predicting the class variable, "classe". In cross validation, the data set is separated into N partitions or in this case 10. Ten iterations are performed to ensure that each observation to be used once in testing. For each iteration, nine partitions are used in constructing a model with the one left out partition used as testing data. The resulting predictions are evaluted against the actual class values and generalized metrics are calculated to estimate the global metrics such as accuracy and recall. 
+
+The following models were used in 10-fold cross validation for each data set:
+
+1) Random Forest Decision Tree
+2) Weka Decision Tree (J48)
+3) Rpart
+
+**NOTE:** Random number generator seed reset to constant for reproducibility.
+
+**Result: Two different data sets and three machine learning algorithms were used to evaluate model performance for six different predictive modeling approaches.**
+
 ## Results and Discussion
 
+``` {r rd01, echo=F, message=F, warning=F}
+
+# create model performance metrics for all models and data sets
+results <- data.frame(c("Random Forest", "Raw Filtered", extractMetrics(model1)),
+                      c("Random Forest", "PCA Transform", extractMetrics(model1.pca)),
+                      c("J48 Decision Tree", "Raw Filtered", extractMetrics(model2)),
+                      c("J48 Decision Tree", "PCA Transform", extractMetrics(model2.pca)),
+                      c("Rpart Tree", "Raw Filtered", extractMetrics(model3)),
+                      c("Rpart Tree", "PCA Transform", extractMetrics(model3.pca)))
+
+# foramt model performance metrics data set
+results <- t(results)
+results <- results[order(results[,3], decreasing = T),]
+results[,3:8] <- percent(round(as.numeric(results[,3:8]),4))
+
+```
+
+The table below outlines the performance metrics achieved by the different modelling approaches using 10-fold cross validation. Since the testing data are withheld from the model training in cross validation, the metrics derived are considered to be out of sample errors. While not exactly error, accuracy and recall represent the percentage of correctly classified observations and the error can be computed by subtracting it from 100%.
+
+The J48 Decision Tree and RandomForest algorithms performed better than the RPart algorithm. With the J48 and Random Forest algorithms, the Raw Filtered data set performed better than the one created from the Principal Component Analysis transform. From the experimentation, the J48 algorithm and the raw filtered data set achieved the best results and will be used to generate the model used in predicting unknown classes in the testing data set.
+
+``` {r rd02, echo=F, message=F, warning=F}
+
+kable(results,
+      row.names = F,
+      col.names = c("Algorithm", "Data Set", "Accuracy", "Recall A", "Recall B", "Recall C", "Recall D", "Recall E"))
+
+```
+
+**Result: J48 Decision Tree and the original filtered data yielded the best accuracy.**
+
+## Unknown Test Samples
+
+``` {r test01, echo=F, message=F, warning=F, cache=TRUE}
+
+# create final model with J48 and Filtered Original data set
+set.seed(2017)
+finalModel <- train(classe~., data=train.final, method="J48")
+
+# make predictions
+predictions <- predict(finalModel, newdata = test.final)  
+predictions <- data.frame(problem_id = test.raw$problem_id,
+                          prediction = predictions)
+
+# analysis of prediction class distribution
+pred.dist <- count(predictions, vars = "prediction")
+pred.dist$percent <- percent(pred.dist$freq/sum(pred.dist$freq))
+class.dist.comp <- data.frame(classe=train.class.count$classe,
+                              train=train.class.count$percent,
+                              test=pred.dist$percent)
+
+# output predictions to CSV file
+test.result.filename = "results/test_pred.csv"
+write.csv(predictions, test.result.filename)
+
+```
+
+The model built for the testing data set will use the entire data set for training instead of a partitioned data set as in the cross validation. The original filtered data set will be used with the J48 Decision Tree algorithm which produced the best results in the cross validation evaluation. The model generated will be used to predict the "classe" variable in the test data set. The test data set had a new variable, "problem_id", that was filtered out in preprocessing the data. 
+
+After the predictions for the "classe" variable were generated, the following distribution of the "classe" were observed. This test distribution of "classe" was compared to the original training set distribution. The results show a difference in all the distributions and this may mean that the test data set may not represent the same class distribution in the training data. This may be an area of concern if the test set has the same distribution as the training data set.
+
+``` {r test02, echo=F, message=F, warning=F}
+
+kable(class.dist.comp,
+      row.names = F,
+      col.names = c("Classe Value", "Train Set", "Test Set"))
+
+```
+
+
+**Result: J48 Decision Tree algorithm and filtered original data was used to predict "classe" variable for the test data set.**
+
 ## Conclusion
+
+The following results were achieved:
+
+1) Feature filtering was performed on original data set to remove extraneous variables.
+2) PCA was performed to generate an additional data set.
+3) Six machine learning modeling approaches were evaluated.
+4) Performance analysis showed that the J48 algorithm and the original filtered data performed best.
+5) The J48 Decision Tree and the filtered origianl data set was used to predict the unknown variable, "classe", in the test data set.
